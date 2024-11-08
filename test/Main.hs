@@ -7,29 +7,30 @@
   , LambdaCase
   , OverloadedRecordDot
   , OverloadedStrings
+  , PackageImports
   , PatternSynonyms
 #-}
 
 module Main (main) where
 
-import System.Exit (exitFailure)
-import Data.Text (Text)
-import Control.Monad (foldM, when, void)
-import Data.Bits (Bits, Ior(..))
-import Codec.CBOR.Term (Term(..))
-import Codec.CBOR.Term qualified as CBOR
-import Codec.CBOR.Write qualified as CBOR
-import Data.ByteString qualified as BS
-import Database.SQLite3.Bindings (c_sqlite3_enable_load_extension)
-import Database.SQLite3.Bindings.Types (CDatabase, CError(..), decodeError)
-import Database.SQLite3.Direct (Utf8(..), Database(..), Error)
-import Database.SQLite3.Direct qualified as Direct
-import Foreign (Ptr, alloca, nullPtr)
-import Foreign.C.String (CString)
-import Foreign.C.Types (CInt(..))
-import Foreign.Storable (peek)
-import Database.SQLite.Simple (Only(..), execute, execute_, query_)
-import Database.SQLite.Simple.Internal (Connection(..))
+import "base" Control.Monad (foldM, when, void)
+import "base" Data.Bits (Bits, Ior(..))
+import "base" Foreign (Ptr, alloca, nullPtr)
+import "base" Foreign.C.String (CString)
+import "base" Foreign.C.Types (CInt(..))
+import "base" Foreign.Storable (peek)
+import "base" System.Exit (exitFailure)
+import "bytestring" Data.ByteString qualified as BS
+import "cborg" Codec.CBOR.Term (Term(..))
+import "cborg" Codec.CBOR.Term qualified as CBOR
+import "cborg" Codec.CBOR.Write qualified as CBOR
+import "direct-sqlite" Database.SQLite.Simple (Only(..), execute, execute_, query_)
+import "direct-sqlite" Database.SQLite.Simple.Internal (Connection(..))
+import "direct-sqlite" Database.SQLite3.Bindings (c_sqlite3_enable_load_extension)
+import "direct-sqlite" Database.SQLite3.Bindings.Types (CDatabase, CError(..), decodeError)
+import "direct-sqlite" Database.SQLite3.Direct (Utf8(..), Database(..), Error)
+import "direct-sqlite" Database.SQLite3.Direct qualified as Direct
+import "text" Data.Text (Text)
 
 foreign import ccall "sqlite3_open_v2"
   c_sqlite3_open_v2 :: CString -> Ptr (Ptr CDatabase) -> CInt -> CString -> IO CError
