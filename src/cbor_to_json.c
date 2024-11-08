@@ -9,6 +9,7 @@
 SQLITE_EXTENSION_INIT1
 
 #include <assert.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -81,19 +82,66 @@ cJSON* cbor_to_cjson(const cbor_item_t* item, const bool keep_tags) {
     case CBOR_TYPE_MAP: {
       cJSON* result = cJSON_CreateObject();
       for (size_t i = 0; i < cbor_map_size(item); i++) {
-        char* key = malloc(128);
-        snprintf(key, 128, "Surrogate key %zu", i);
-        // JSON only support string keys
-        if (cbor_isa_string(cbor_map_handle(item)[i].key) &&
-            cbor_string_is_definite(cbor_map_handle(item)[i].key)) {
-          size_t key_length = cbor_string_length(cbor_map_handle(item)[i].key);
-          if (key_length > 127) key_length = 127;
-          // Null-terminated madness
-          memcpy(key, cbor_string_handle(cbor_map_handle(item)[i].key),
-                 key_length);
-          key[key_length] = 0;
+        char* key = NULL;
+        cbor_item_t* map_key = cbor_map_handle(item)[i].key;
+
+        if (cbor_isa_string(map_key)) {
+          size_t key_length;
+          const char* key_data;
+
+          if (cbor_string_is_definite(map_key)) {
+            // Definite-length string: Copy directly
+            key_length = cbor_string_length(map_key);
+            key_data = (const char*)cbor_string_handle(map_key);
+            key = malloc(key_length + 1);
+            memcpy(key, key_data, key_length);
+            key[key_length] = '\0';  // Null-terminate
+          } else {
+            // Indefinite-length string: Concatenate chunks
+            size_t total_length = 0;
+            // Get the chunks of the indefinite string
+            cbor_item_t** chunks = cbor_string_chunks_handle(map_key);
+            size_t chunk_count = cbor_string_chunk_count(map_key);
+
+            for (size_t j = 0; j < chunk_count; j++) {
+              total_length += cbor_string_length(chunks[j]);
+            }
+
+            key = malloc(total_length + 1);  // +1 for null-terminator
+            size_t offset = 0;
+            for (size_t j = 0; j < chunk_count; j++) {
+              const char* chunk_data = (const char*)cbor_string_handle(chunks[j]);
+              size_t chunk_length = cbor_string_length(chunks[j]);
+              memcpy(key + offset, chunk_data, chunk_length);
+              offset += chunk_length;
+            }
+            key[total_length] = '\0';  // Null-terminate
+          }
+        }
+        else if (cbor_isa_uint(map_key)) {
+          uint64_t key_value = cbor_get_int(map_key);
+          key = malloc(32);  // Arbitrarily large enough for uint64_t
+          snprintf(key, 32, "%" PRIu64, key_value);
+        }
+        else if (cbor_isa_negint(map_key)) {
+          // see https://github.com/PJK/libcbor/issues/56 for an explanation
+          // of why this calculates the negative integer this way
+          int64_t key_value = (-1 * ((int64_t)cbor_get_int(item))) - 1;
+          key = malloc(32);  // Arbitrarily large enough for int64_t
+          snprintf(key, 32, "%" PRId64, key_value);
+        }
+        else if (cbor_isa_bytestring(map_key)) {
+          size_t length = cbor_bytestring_length(map_key);
+          key = to_hex_string(cbor_bytestring_handle(map_key), length);
         }
 
+        // If key is still NULL, we didn't find a valid type for the key
+        if (!key) {
+          key = malloc(128);  // Default placeholder key size
+          snprintf(key, 128, "Surrogate key %zu", i);  // Fallback to surrogate key
+        }
+
+        // Add the item to the JSON object
         cJSON_AddItemToObject(result, key,
                               cbor_to_cjson(cbor_map_handle(item)[i].value, keep_tags));
         free(key);
